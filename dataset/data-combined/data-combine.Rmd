@@ -1,0 +1,82 @@
+---
+title: "Data combine"
+author: "Xuelian Xi"
+date: "2024-03-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+data_whole <- read.csv("N-Victimization.csv")
+data_edu <- read.csv("N-Education.csv")
+data_lowIncome <- read.csv("N-LowIncome.csv")
+data_population <- read.csv("N-Population.csv")
+data_unemployment <- read.csv("N-Unemployment.csv")
+```
+
+
+```{r}
+
+# 从 data_population 中选取 Group 为 "All Ages" 且 Gender 为 "Total" 的行
+selected_rows <- data_population[data_population$Group == "All Ages" & data_population$Gender == "Total", ]
+
+# 将匹配的 Total_Value 值填入 data_whole 中相同 REF_DATE 和 GEO 的行中的 Total Population for GEO 列
+data_whole$Total_Population_for_GEO <- selected_rows$Total_Value[match(
+  paste(data_whole$REF_DATE, data_whole$GEO, sep = "_"),
+  paste(selected_rows$REF_DATE, selected_rows$GEO, sep = "_")
+)]
+
+
+```
+
+```{r}
+selected_rows2 <- data_lowIncome[data_lowIncome$Persons.in.low.income == "All persons", ]
+data_whole$LowIncome_Perc_for_GEO <- selected_rows2$VALUE[match(
+  paste(data_whole$REF_DATE, data_whole$GEO, sep = "_"),
+  paste(selected_rows2$REF_DATE, selected_rows2$GEO, sep = "_")
+)]
+```
+
+
+```{r}
+selected_rows3 <- data_edu[data_edu$Educational.attainment.level == "Upper secondary or above" & data_edu$Age.group == "Total, 25 to 64 years" & data_edu$Sex == "Both sexes", ]
+
+data_whole$UpSecondary_Perc_for_GEO <- selected_rows3$VALUE[match(
+  paste(data_whole$REF_DATE, data_whole$GEO, sep = "_"),
+  paste(selected_rows3$REF_DATE, selected_rows3$GEO, sep = "_")
+)]
+```
+
+```{r}
+library(dplyr)
+data_unemployment <- data_unemployment %>%
+  mutate(Year = lubridate::year(REF_DATE))
+
+# 计算每个年份和地区的平均值
+average_data <- data_unemployment %>%
+  mutate(Year = year(as.Date(REF_DATE))) %>%
+  group_by(Year, GEO) %>%
+  summarise(Average_Value = mean(VALUE, na.rm = TRUE), .groups="drop")
+
+# 将计算得到的平均值合并到原始数据框中
+data_unemployment <- left_join(data_unemployment, average_data, by = c("Year", "GEO"))
+
+
+```
+
+
+```{r}
+data_whole$Unemployment_Perc_for_GEO <- data_unemployment$Average_Value[match(
+  paste(data_whole$REF_DATE, data_whole$GEO, sep = "_"),
+  paste(data_unemployment$Year, data_unemployment$GEO, sep = "_")
+)]
+```
+
+```{r}
+write.csv(data_whole, "data_combined.csv", row.names = FALSE)
+```
+
+
